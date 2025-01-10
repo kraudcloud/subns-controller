@@ -1,0 +1,27 @@
+# permissions for end users to edit subnamespaceclaims.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: emcp-ns-binding
+    app.kubernetes.io/managed-by: kustomize
+  name: subnamespaceclaim-editor-role
+rules:
+- apiGroups:
+  - subns.subns.kraud.cloud
+  resources:
+  - subnamespaceclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - subns.subns.kraud.cloud
+  resources:
+  - subnamespaceclaims/status
+  verbs:
+  - get

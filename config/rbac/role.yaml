@@ -1,0 +1,56 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - subns.kraud.cloud
+  resources:
+  - subnamespaceclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - subns.kraud.cloud
+  resources:
+  - subnamespaceclaims/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - subns.kraud.cloud
+  resources:
+  - subnamespaceclaims/status
+  verbs:
+  - get
+  - patch
+  - update

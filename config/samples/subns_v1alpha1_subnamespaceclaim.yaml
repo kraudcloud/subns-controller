@@ -1,0 +1,9 @@
+apiVersion: subns.subns.kraud.cloud/v1alpha1
+kind: SubNamespaceClaim
+metadata:
+  labels:
+    app.kubernetes.io/name: emcp-ns-binding
+    app.kubernetes.io/managed-by: kustomize
+  name: subnamespaceclaim-sample
+spec:
+  # TODO(user): Add fields here
