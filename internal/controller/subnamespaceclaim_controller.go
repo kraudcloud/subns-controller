@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	subnsv1alpha1 "github.com/kraudcloud/subns-controller/api/v1alpha1"
@@ -17,17 +18,13 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 )
 
+const finalizerName = "subns.subns.kraud.cloud/finalizer"
+
 // SubNamespaceClaimReconciler reconciles a SubNamespaceClaim object
 type SubNamespaceClaimReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
-
-// +kubebuilder:rbac:groups=subns.kraud.cloud,resources=subnamespaceclaims,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=subns.kraud.cloud,resources=subnamespaceclaims/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=subns.kraud.cloud,resources=subnamespaceclaims/finalizers,verbs=update
-// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch;delete
 
 func (r *SubNamespaceClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
@@ -42,8 +39,23 @@ func (r *SubNamespaceClaimReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	// Construct the full namespace name by prefixing with parent namespace
+	// Construct the full namespace name
 	fullNamespaceName := fmt.Sprintf("%s-%s", subNamespaceClaim.Namespace, subNamespaceClaim.Spec.Name)
+
+	// Check if the object is being deleted
+	if !subNamespaceClaim.DeletionTimestamp.IsZero() {
+		return r.handleDeletion(ctx, subNamespaceClaim, fullNamespaceName)
+	}
+
+	// Add finalizer if it doesn't exist
+	if !controllerutil.ContainsFinalizer(subNamespaceClaim, finalizerName) {
+		controllerutil.AddFinalizer(subNamespaceClaim, finalizerName)
+		if err := r.Update(ctx, subNamespaceClaim); err != nil {
+			return ctrl.Result{}, err
+		}
+		// Return here as the update will trigger another reconciliation
+		return ctrl.Result{}, nil
+	}
 
 	// Create or ensure namespace exists
 	namespace := &corev1.Namespace{
@@ -120,8 +132,43 @@ func (r *SubNamespaceClaimReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	return ctrl.Result{}, nil
 }
 
+// handleDeletion handles the cleanup of resources when the SubNamespaceClaim is deleted
+func (r *SubNamespaceClaimReconciler) handleDeletion(ctx context.Context, subNamespaceClaim *subnsv1alpha1.SubNamespaceClaim, fullNamespaceName string) (ctrl.Result, error) {
+	log := log.FromContext(ctx)
+
+	if controllerutil.ContainsFinalizer(subNamespaceClaim, finalizerName) {
+		// Delete the namespace
+		namespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fullNamespaceName,
+			},
+		}
+
+		err := r.Get(ctx, client.ObjectKey{Name: namespace.Name}, namespace)
+		if err == nil {
+			// Namespace exists, delete it
+			if err := r.Delete(ctx, namespace); err != nil && !errors.IsNotFound(err) {
+				log.Error(err, "Failed to delete namespace")
+				return ctrl.Result{}, err
+			}
+			log.Info("Deleted namespace", "namespace", fullNamespaceName)
+		} else if !errors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+
+		// Remove finalizer
+		controllerutil.RemoveFinalizer(subNamespaceClaim, finalizerName)
+		if err := r.Update(ctx, subNamespaceClaim); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	return ctrl.Result{}, nil
+}
+
 func (r *SubNamespaceClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&subnsv1alpha1.SubNamespaceClaim{}).
 		Complete(r)
 }
+

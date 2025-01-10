@@ -1,114 +1,55 @@
-# emcp-ns-binding
-// TODO(user): Add simple overview of use/purpose
+a k8s controller that lets an owner of a namespace create more namespaces.
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+this is particular useful if you have several teams using k8s,
+and you want to allow a team to create and delete their own namespaces,
+without giving them permissions to accidently break someone elses stuff.
 
-## Getting Started
+this is for prevening _accidental_ namespace escape.
+i have not actually checked if this allows _intentional_ escape,
+i.e. don't use this when you dont trust your users.
 
-### Prerequisites
-- go version v1.22.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+example:
 
-```sh
-make docker-build docker-push IMG=<some-registry>/emcp-ns-binding:tag
+```yaml
+apiVersion: subns.subns.kraud.cloud/v1alpha1
+kind: SubNamespaceClaim
+metadata:
+  name: sub1
+  namespace: parent
+spec:
+  name: sub1
+  roleBindings:
+    - name: developers
+      subjects:
+      - kind: ServiceAccount
+        name: bobi
+        namespace: klum
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: admin
+
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+this will create an ns called parent-sub1
 
-**Install the CRDs into the cluster:**
 
-```sh
-make install
-```
+# usage
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+Install the CRD:
 
-```sh
-make deploy IMG=<some-registry>/emcp-ns-binding:tag
-```
+    make install
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+deploy the image:
 
-```sh
-kubectl apply -k config/samples/
-```
+    kubectl apply -f prod.yaml
 
->**NOTE**: Ensure that the samples has default values to test it out.
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
 
-```sh
-kubectl delete -k config/samples/
-```
+# dev
 
-**Delete the APIs(CRDs) from the cluster:**
+build img:
 
-```sh
-make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following are the steps to build the installer and distribute this project to users.
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/emcp-ns-binding:tag
-```
-
-NOTE: The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without
-its dependencies.
-
-2. Using the installer
-
-Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/emcp-ns-binding/<tag or branch>/dist/install.yaml
-```
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+    make docker-build docker-push IMG=ctr.0x.pt/subns-controller/subns-controller:latest
